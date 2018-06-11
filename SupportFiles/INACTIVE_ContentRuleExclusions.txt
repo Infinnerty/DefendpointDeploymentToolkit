@@ -1,0 +1,21 @@
+WinZip64.exe
+WinZip32.exe
+WZZip.exe
+WZUnzip.exe
+WinRAR.exe
+RAR.exe
+7Zg.exe
+7Z.exe
+devenv.exe
+msbuild.exe
+ngen.exe
+regasm.exe
+C:\Program Files (x86)\Xoreax\IncrediBuild\
+eclipse.exe
+phpstorm.exe
+phpstorm.exe
+idea.exe
+idea64.exe
+netbeans.exe
+netbeans64.exe
+|dll
