@@ -1,5 +1,5 @@
 ### Readme: Defendpoint Deployment Tool
-### Author: Adem Murselaj (Avecto)
+### Author: Adem Murselaj (adem.murselaj@avecto.com)
 ### Version: 1.1
 
 • Used to install/uninstall Avecto Defendpoint Client and/or Avecto iC3 Adapter.
@@ -18,7 +18,7 @@
 
 • Parameters values can be defined in 'Deploy-Application.ps1' on line 35 onwards, or they can be passed to 'Deploy-Application.ps1' directly or using the provided batch files ('install_launch.bat' / 'uninstall_launch.bat')
 
-• Removal/downgrade of administrator accounts can occur at the same time of software installation using $$RemoveAllUsersFromLocalAdmin or $$RemoveCurrentUserFromLocalAdmin
+• Removal/downgrade of administrator accounts can occur at the same time of software installation using $RemoveAllUsersFromLocalAdmin or $RemoveCurrentUserFromLocalAdmin
 
 • Exceptions to administrator account downgrade can be made using $RemoveAllUsersFromLocalAdminExclusions in 'Deploy-Application.ps1'
 

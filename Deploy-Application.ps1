@@ -85,7 +85,7 @@ Param (
 	[Parameter(Mandatory=$false)]
 	[boolean]$EnableWinRM = $false,														# Enable Windows Remote Management (WinRM) (Default: Disabled)
 	[Parameter(Mandatory=$false)]
-	[boolean]$InstallEventForwardingCertIficate = $false,								# Install and configure a certIficate for Event Forwarding (Default: Disabled)
+	[boolean]$InstallEventForwardingCertIficate = $false,								# Install and configure a certificate for Event Forwarding (Default: Disabled)
 	[Parameter(Mandatory=$false)]
 	[string]$EventForwardingCertIficateFile = "Certificate.cer",						# Event Forwarding certificate file-name (should be located in SupportFiles folder)
 	[Parameter(Mandatory=$false)]
@@ -261,14 +261,22 @@ function Install-iC3Adapter
 		{
 			Write-Log "NET Framework 4.6.1 or greater is NOT installed."
 			Write-Log "Beginning install of .NET Framework 4.6.1 pre-requisite component..."
-			$process = Start-Process -FilePath "$dirFiles\KB3151800.exe" -ArgumentList "/q /norestart /log $envWinDir\Logs\Software\" -PassThru -Wait -Verb RunAs
-			If ($process.ExitCode -eq 3010) 
+
+			If (Test-Path "$dirFiles\KB3151800.exe") 
 			{
-				Write-Log -Message "Finished .NET Framework install - a reboot is required!"
-				Show-InstallationRestartPrompt -CountDownSeconds $RestartCountDownSeconds -CountdownNoHideSeconds 1800
-				Exit-Script -ExitCode 3010
+				$process = Start-Process -FilePath "$dirFiles\KB3151800.exe" -ArgumentList "/q /norestart /log $envWinDir\Logs\Software\" -PassThru -Wait -Verb RunAs
+				If ($process.ExitCode -eq 3010) 
+				{
+					Write-Log -Message "Finished .NET Framework install - a reboot is required!"
+					Show-InstallationRestartPrompt -CountDownSeconds $RestartCountDownSeconds -CountdownNoHideSeconds 1800
+					Exit-Script -ExitCode 3010
+				}
+				Write-Log -Message "Finished .NET Framework 4.6.1 install - no reboot is required."
 			}
-			Write-Log -Message "Finished .NET Framework 4.6.1 install - no reboot is required."
+			Else
+			{
+				Write-Log -Message "'KB3151800.exe' can't be found in the 'Files' directory! The iC3 adapter will likely fail to install." -Severity 3
+			}
 		}
 		Else 
 		{
