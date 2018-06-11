@@ -142,7 +142,8 @@ function Install-iC3Adapter
 	If ($Is64Bit) { $installArch = 'x64' } Else { $installArch = 'x86' }
 
 	## Read the iC3 version from the file.
-	If (Test-Path -Path $dirFiles\ic3_version.txt) {
+	If (Test-Path -Path $dirFiles\ic3_version.txt) 
+	{
 		Write-Log -Message "Reading iC3 version from: '$dirFiles\ic3_version.txt'"
 		If ((Get-Content -Path "$dirFiles\ic3_version.txt") -eq $null) 
 		{
@@ -186,7 +187,6 @@ function Install-iC3Adapter
 
 	## Check whether the iC3 adapter is already installed.
 	$appToMatch = 'Avecto iC3 Adapter'
-	#$versionToMatch = '1.4.13794.0'
 	$result = Get-InstalledApps | Where-Object {$_.DisplayName -like $appToMatch -and $_.DisplayVersion -eq $iC3Version}
 	$resultDisplayVersion = $result | Select-Object -ExpandProperty DisplayVersion
 
@@ -212,9 +212,6 @@ function Install-iC3Adapter
 				Remove-Item "C:\Users\IC3Adapter" -Recurse -Force
 			}
 
-			## Run DelProf2 to remove the inactive iC3 user profile.
-			## Start-Process -FilePath "$dirFiles\DelProf2.exe" -ArgumentList "/u" -WindowStyle Hidden -Wait -Verb RunAs
-
 			## A machine MUST be rebooted before installing/upgrading the iC3 adapter.
 			If (Test-Path "C:\Windows\Logs\Software\ic3_adapter_removed_for_upgrade.tmp") 
 			{
@@ -233,7 +230,8 @@ function Install-iC3Adapter
 				}
 			}
 			## Create entry to confirm iC3 adapter is removed.
-			Else {
+			Else 
+			{
 				Write-Log -Message "Creating record of uninstall in 'C:\Windows\Logs\Software\ic3_adapter_removed_for_upgrade.tmp'"
 				(Get-Date).ToFileTime() | Out-File "C:\Windows\Logs\Software\ic3_adapter_removed_for_upgrade.tmp" -NoNewline
 			
@@ -252,9 +250,11 @@ function Install-iC3Adapter
 				Exit-Script -ExitCode 3010
 			}
 		}
-		Else {
+		Else 
+		{
 			Write-Log -Message "Begin pre-reqs and install of iC3 adapter [$iC3Version]"
 		}
+
 		## Installs .NET Framework 4.6.1.
 		Write-Log -Message "Checking whether NET Framework 4.6.1 or greater is installed..."
 		If (!(Get-ChildItem "HKLM:SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full\" | Get-ItemProperty -Name Release | ForEach-Object { $_.Release -ge 394254 }))
@@ -318,7 +318,7 @@ Try
 	[string]$appName = 'Defendpoint Client'
 	[string]$appVersion = '5.1.149'
 	## Unless we are dealing with a mixed pilot environment (where a subset of users are testing a newever client version), $pilotClientVersion should be the same as $appVersion.
-	[string]$pilotClientVersion = '5.1.149'
+	[string]$pilotClientVersion = $appVersion
 	[string]$appArch = ''
 	[string]$appLang = 'EN'
 	[string]$appRevision = '01'
