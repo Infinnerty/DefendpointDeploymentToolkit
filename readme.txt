@@ -1,6 +1,6 @@
 ### Readme: Defendpoint Deployment Tool
 ### Author: Adem Murselaj (Avecto)
-### Version: 1.0
+### Version: 1.1
 
 • Used to install/uninstall Avecto Defendpoint Client and/or Avecto iC3 Adapter.
 
@@ -8,16 +8,26 @@
 
 • When configured to install, the script checks whether a specific version of Defendpoint is installed.
 
-• The Defendpoint version to check is defined using [string]$appVersion = '5.1.149' on line 319. This should be changed according to the environment.
+• The Defendpoint client version to check is defined using [string]$appVersion = '5.1.149' on line 319 ('Deploy-Application.ps1').
 
-• If the Defendpoint client version, as specified on line 296, is already installed, the script will not initiate an install unless $ReplaceCurrentClient is set to $true.
+• If the intended Defendpoint client version is already installed, the script will not initiate an install unless the parameter $ReplaceCurrentClient is set to $true.
 
 • The parameter $ForceUninstallPreviousVersion, when $true, will remove all known traces of Defendpoint from a system. This is useful in situations where upgrades are failing.
 
-• The Defendpoint MSI to install is stored in the 'Files' directory.
+• The Defendpoint MSI to install should be stored in the 'Files' directory.
 
-• Parameters can be defined in "Deploy-Application.ps1" on line 35 onwards, or they can be passed to the PowerShell script using a batch file (i.e. "install_launch.bat" / "uninstall_launch.bat")
+• Parameters values can be defined in 'Deploy-Application.ps1' on line 35 onwards, or they can be passed to 'Deploy-Application.ps1' directly or using the provided batch files ('install_launch.bat' / 'uninstall_launch.bat')
 
-• PowerShell and verbose MSI logs are located: "C:\Windows\Logs\Software\"
+• Removal/downgrade of administrator accounts can occur at the same time of software installation using $$RemoveAllUsersFromLocalAdmin or $$RemoveCurrentUserFromLocalAdmin
+
+• Exceptions to administrator account downgrade can be made using $RemoveAllUsersFromLocalAdminExclusions in 'Deploy-Application.ps1'
+
+• Admin account downgrade only occurs if Defendpoint is installed.
+
+• Admin accounts are downgraded to standard users.
+
+• Admin accounts can also be added to the 'Power User' or 'Remote Desktop Users' group if using $AddRemovedUserstoPowerUsers or $AddRemovedUserstoRemoteDesktopUsers.
+
+• Verbose logs are located: 'C:\Windows\Logs\Software\'
 
 • The script requires elevation to operate.

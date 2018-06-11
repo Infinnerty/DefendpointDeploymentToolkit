@@ -322,8 +322,8 @@ Try
 	[string]$appArch = ''
 	[string]$appLang = 'EN'
 	[string]$appRevision = '01'
-	[string]$appScriptVersion = '1.2.14'
-	[string]$appScriptDate = '24/11/2017'
+	[string]$appScriptVersion = '1.1'
+	[string]$appScriptDate = '11/06/2018'
 	[string]$appScriptAuthor = 'Dan Cunningham, Adem Murselaj'
 	[boolean]$ClientAlreadyInstalled = $false
 	##*===============================================
