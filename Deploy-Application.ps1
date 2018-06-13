@@ -106,14 +106,14 @@ Param (
 	[boolean]$AddRemovedUserstoRemoteDesktopUsers = $false								# Add any user removed from the Local Administrators group to the Remote Desktop Users group (Default: Disabled)
 )
 
-##############################
+<#############################
 #.SYNOPSIS
 # Checks whether a given application is installed on the system.
 #
 #.EXAMPLE
 # Get-InstalledApps | Where-Object {$_.DisplayName -like "Application" -and $_.DisplayVersion -eq "Application version"}
 #
-##############################
+#############################>
 function Get-InstalledApps
 {
 	If ([IntPtr]::Size -eq 4) 
@@ -129,14 +129,17 @@ function Get-InstalledApps
     }
     Get-ItemProperty $regpath | .{process{If($_.DisplayName -and $_.UninstallString) { $_ } }} | Select-Object DisplayName, Publisher, InstallDate, DisplayVersion, UninstallString | Sort-Object DisplayName
 }
+<#
+End of Function
+#>
 
-##############################
+<#############################
 #.SYNOPSIS
 # Checks whether iC3 Adapter is already installed. If yes, the installation does not continue. If no, then install .NET Framework 4.6.1 and the iC3 Adapter.
 #
 #.NOTES
 # This function also deletes any GPO delivered Defendpoint policy.
-##############################
+#############################>
 function Install-iC3Adapter
 {
 	If ($Is64Bit) { $installArch = 'x64' } Else { $installArch = 'x86' }
@@ -312,29 +315,114 @@ function Install-iC3Adapter
 		Write-Log -Message "The iC3 adapter [$resultDisplayVersion] is already installed. Exiting function."
 	}
 }
+<#
+End of Function
+#>
+
+<#############################
+#.SYNOPSIS
+# Get product & version-specific information from an MSI file.
+#
+#.EXAMPLE
+# C:\> Get-MsiInformation -Path "$env:Temp\Installer.msi"
+#
+#############################>
+function Get-MsiInformation
+{
+    [CmdletBinding(SupportsShouldProcess=$true, 
+                   PositionalBinding=$false,
+                   ConfirmImpact='Medium')]
+    [Alias("gmsi")]
+    Param(
+        [parameter(Mandatory=$true,
+                   ValueFromPipeline=$true,
+                   ValueFromPipelineByPropertyName=$true,
+                   HelpMessage = "Provide the path to an MSI")]
+        [ValidateNotNullOrEmpty()]
+        [System.IO.FileInfo[]]$Path,
+ 
+        [parameter(Mandatory=$false)]
+        [ValidateSet( "ProductCode", "Manufacturer", "ProductName", "ProductVersion", "ProductLanguage" )]
+        [string[]]$Property = ( "ProductCode", "Manufacturer", "ProductName", "ProductVersion", "ProductLanguage" )
+    )
+
+    Begin
+    {
+        # Do nothing for prep
+    }
+    Process
+    {
+        
+        ForEach ( $P in $Path )
+        {
+            if ($pscmdlet.ShouldProcess($P, "Get MSI Properties"))
+            {            
+                try
+                {
+                    Write-Verbose -Message "Resolving file information for $P"
+                    $MsiFile = Get-Item -Path $P
+                    Write-Verbose -Message "Executing on $P"
+                    
+                    # Read property from MSI database
+                    $WindowsInstaller = New-Object -ComObject WindowsInstaller.Installer
+                    $MSIDatabase = $WindowsInstaller.GetType().InvokeMember("OpenDatabase", "InvokeMethod", $null, $WindowsInstaller, @($MsiFile.FullName, 0))
+                    
+                    # Build hashtable for retruned objects properties
+                    $PSObjectPropHash = [ordered]@{File = $MsiFile.FullName}
+                    ForEach ( $Prop in $Property )
+                    {
+                        Write-Verbose -Message "Enumerating Property: $Prop"
+                        $Query = "SELECT Value FROM Property WHERE Property = '$( $Prop )'"
+                        $View = $MSIDatabase.GetType().InvokeMember("OpenView", "InvokeMethod", $null, $MSIDatabase, ($Query))
+                        $View.GetType().InvokeMember("Execute", "InvokeMethod", $null, $View, $null)
+                        $Record = $View.GetType().InvokeMember("Fetch", "InvokeMethod", $null, $View, $null)
+                        $Value = $Record.GetType().InvokeMember("StringData", "GetProperty", $null, $Record, 1)
+ 
+                        # Return the value to the Property Hash
+                        $PSObjectPropHash.Add($Prop, $Value)
+
+                    }
+                    
+                    # Build the Object to Return
+                    $Object = @( New-Object -TypeName PSObject -Property $PSObjectPropHash )
+                    
+                    # Commit database and close view
+                    $MSIDatabase.GetType().InvokeMember("Commit", "InvokeMethod", $null, $MSIDatabase, $null)
+                    $View.GetType().InvokeMember("Close", "InvokeMethod", $null, $View, $null)           
+                    $MSIDatabase = $null
+                    $View = $null
+                }
+                catch
+                {
+                    Write-Error -Message $_.Exception.Message
+                }
+                finally
+                {
+                    Write-Output -InputObject @( $Object )
+                }
+            } # End of ShouldProcess If
+        } # End For $P in $Path Loop
+
+    }
+    End
+    {
+        # Run garbage collection and release ComObject
+        [System.Runtime.Interopservices.Marshal]::ReleaseComObject($WindowsInstaller) | Out-Null
+        [System.GC]::Collect()
+    }
+}
+<#
+End of Function
+#>
 
 Try 
 {
-	## Set the script execution policy for this process
-	Try { Set-ExecutionPolicy -ExecutionPolicy 'Bypass' -Scope 'Process' -Force -ErrorAction 'Stop' } Catch {}
-
-	##*===============================================
-	##* VARIABLE DECLARATION
-	##*===============================================
-	## Variables: Application
-	[string]$appVendor = 'Avecto'
-	[string]$appName = 'Defendpoint Client'
-	[string]$appVersion = '5.1.149'
-	## Unless we are dealing with a mixed pilot environment (where a subset of users are testing a newever client version), $pilotClientVersion should be the same as $appVersion.
-	[string]$pilotClientVersion = $appVersion
-	[string]$appArch = ''
-	[string]$appLang = 'EN'
-	[string]$appRevision = '01'
-	[string]$appScriptVersion = '1.1'
-	[string]$appScriptDate = '11/06/2018'
-	[string]$appScriptAuthor = 'Dan Cunningham, Adem Murselaj'
-	[boolean]$ClientAlreadyInstalled = $false
-	##*===============================================
+	## Set the script execution policy for this process.
+	Try 
+	{ 
+		Set-ExecutionPolicy -ExecutionPolicy 'Bypass' -Scope 'Process' -Force -ErrorAction 'Stop' 
+	} 
+	Catch {}
 
 	##* Do not modify section below!
 	#region DoNotModIfy
@@ -345,7 +433,7 @@ Try
 	## Variables: Script
 	[string]$deployAppScriptFriendlyName = 'Deploy Application'
 	[version]$deployAppScriptVersion = [version]'3.6.9'
-	[string]$deployAppScriptDate = '10/11/2017'
+	[string]$deployAppScriptDate = '13/06/2018'
 	[hashtable]$deployAppScriptParameters = $psBoundParameters
 
 	## Variables: Environment
@@ -374,6 +462,31 @@ Try
 	##* END VARIABLE DECLARATION
 	##*===============================================
 
+	## Set the context to 64-bit or 32-bit, depending on architecture.
+	If ($Is64Bit) { $installArch = 'x64' } Else { $installArch = 'x86' }
+
+	##*===============================================
+	##* VARIABLE DECLARATION
+	##*===============================================
+	## Variables: Application
+	[string]$appVendor = 'Avecto'
+	[string]$appName = 'Defendpoint Client'
+
+	## Rather than define the version manually, we use Get-MsiInformation and retrieve the product version dynamically.
+	[string]$appVersion = Get-MsiInformation -Path "$dirFiles\DefendpointClient_x64.msi" | Select-Object -ExpandProperty ProductVersion
+
+	## Unless we are dealing with a mixed pilot environment (where a subset of users are testing a newever client version), $pilotClientVersion should be the same as $appVersion.
+	[string]$pilotClientVersion = $appVersion
+	
+	[string]$appArch = ''
+	[string]$appLang = 'EN'
+	[string]$appRevision = '01'
+	[string]$appScriptVersion = '1.2'
+	[string]$appScriptDate = '13/06/2018'
+	[string]$appScriptAuthor = 'Dan Cunningham, Adem Murselaj'
+	[boolean]$ClientAlreadyInstalled = $false
+	##*===============================================
+
 	## Trigger a warning if the execution of the script is x86 and the OS is x64.
 	If (!([System.Environment]::Is64BitProcess) -and ((Get-WmiObject Win32_OperatingSystem).OSArchitecture -eq "64-bit")) 
 	{
@@ -388,7 +501,7 @@ Try
 		##* PRE-INSTALLATION
 		##*===============================================
 		[string]$installPhase = 'Pre-Installation'
-
+		
 		##*===============================================
 		##* START CUSTOM ACTIONS
 		##*===============================================

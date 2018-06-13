@@ -1,6 +1,6 @@
 ### Readme: Defendpoint Deployment Tool
 ### Author: Adem Murselaj (adem.murselaj@avecto.com)
-### Version: 1.1
+### Version: 1.2
 
 • Used to install/uninstall Avecto Defendpoint Client and/or Avecto iC3 Adapter.
 
@@ -8,7 +8,7 @@
 
 • When configured to install, the script checks whether a specific version of Defendpoint is installed.
 
-• The Defendpoint client version to check is defined using [string]$appVersion = '5.1.149' on line 319 ('Deploy-Application.ps1').
+• The Defendpoint client version check is made dynamically from the MSI file. If a version older (or lack thereof) is installed, the script will install the MSI.
 
 • If the intended Defendpoint client version is already installed, the script will not initiate an install unless the parameter $ReplaceCurrentClient is set to $true.
 

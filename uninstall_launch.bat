@@ -1,5 +1,5 @@
 @echo off
-REM Defendpoint Deployment Toolkit Launcher V1.1
+REM Defendpoint Deployment Toolkit Launcher V1.2
 REM Written by Avecto Professional Services (Adem Murselaj
 
 cd /d %~dp0
