@@ -10482,7 +10482,8 @@ If (-not $appName) {
 }
 If ($ReferredInstallTitle) { [string]$installTitle = $ReferredInstallTitle }
 If (-not $installTitle) {
-	[string]$installTitle = ("$appVendor $appName $appVersion").Trim()
+	#[string]$installTitle = ("$appVendor $appName $appVersion").Trim()
+	[string]$installTitle = ("$appName").Trim()
 }
 
 ## Sanitize the application details, as they can cause issues in the script

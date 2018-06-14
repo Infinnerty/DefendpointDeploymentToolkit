@@ -473,11 +473,12 @@ Try
 	[string]$appName = 'Defendpoint Client'
 
 	## Rather than define the version manually, we use Get-MsiInformation and retrieve the product version dynamically.
-	[string]$appVersion = Get-MsiInformation -Path "$dirFiles\DefendpointClient_x64.msi" | Select-Object -ExpandProperty ProductVersion
-
+	If (Test-Path "$dirFiles\DefendpointClient_$installArch.msi")
+	{
+		[string]$appVersion = Get-MsiInformation -Path "$dirFiles\DefendpointClient_x64.msi" | Select-Object -ExpandProperty ProductVersion
+	}
 	## Unless we are dealing with a mixed pilot environment (where a subset of users are testing a newever client version), $pilotClientVersion should be the same as $appVersion.
 	[string]$pilotClientVersion = $appVersion
-	
 	[string]$appArch = ''
 	[string]$appLang = 'EN'
 	[string]$appRevision = '01'
@@ -490,9 +491,8 @@ Try
 	## Trigger a warning if the execution of the script is x86 and the OS is x64.
 	If (!([System.Environment]::Is64BitProcess) -and ((Get-WmiObject Win32_OperatingSystem).OSArchitecture -eq "64-bit")) 
 	{
-		Write-Log -Message "It is not recommended to run this script in 32-bit mode on a 64-bit OS!" -Severity 3
+		Write-Log -Message "It is not recommended to run this script in 32-bit mode on a 64-bit OS! Cannot continue." -Severity 3
 		Exit-Script -ExitCode 60001
-		#Show-DialogBox -Text "It is not recommended to run this script in 32-bit mode on a 64-bit OS." -Icon 'Exclamation' 
 	}
 
 	If ($DeploymentType -ine 'Uninstall') 
@@ -501,7 +501,14 @@ Try
 		##* PRE-INSTALLATION
 		##*===============================================
 		[string]$installPhase = 'Pre-Installation'
-		
+
+		## Check that the Defendpoint MSI is present, if not then notify and exit.
+		If (!(Test-Path "$dirFiles\DefendpointClient_$installArch.msi"))
+		{
+			Write-Log -Message "The Defendpoint MSI file: '$dirFiles\DefendpointClient_$installArch.msi' in not in the '$dirFiles' directory. Cannot continue." -Severity 3
+			Exit-Script -ExitCode 60001
+		}
+
 		##*===============================================
 		##* START CUSTOM ACTIONS
 		##*===============================================
