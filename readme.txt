@@ -1,6 +1,6 @@
-### Readme: Defendpoint Deployment Tool
-### Author: Adem Murselaj (adem.murselaj@avecto.com)
-### Version: 1.2
+### Readme: Defendpoint Deployment Tool ###
+### Author: Adem Murselaj (adem.murselaj@avecto.com) ###
+### Version: 1.2 ###
 
 • Used to install/uninstall Avecto Defendpoint Client and/or Avecto iC3 Adapter.
 
@@ -12,11 +12,11 @@
 
 • If the intended Defendpoint client version is already installed, the script will not initiate an install unless the parameter $ReplaceCurrentClient is set to $true.
 
-• The parameter $ForceUninstallPreviousVersion, when $true, will remove all known traces of Defendpoint from a system. This is useful in situations where upgrades are failing.
+• The parameter $ForceUninstallPreviousVersion, when $true, will remove all known traces of Defendpoint from a system; this is useful in situations where upgrades are failing.
 
-• The Defendpoint MSI to install should be stored in the 'Files' directory.
+• The Defendpoint MSI (DefendpointClient_x64.msi OR DefendpointClient_x86.msi) should be stored in the 'Files' directory.
 
-• Parameters values can be defined in 'Deploy-Application.ps1' on line 35 onwards, or they can be passed to 'Deploy-Application.ps1' directly or using the provided batch files ('install_launch.bat' / 'uninstall_launch.bat')
+• Parameters values can be defined in 'Deploy-Application.ps1', or passed to 'Deploy-Application.ps1' directly, or using the provided batch files ('install_launch.bat' / 'uninstall_launch.bat')
 
 • Removal/downgrade of administrator accounts can occur at the same time of software installation using $RemoveAllUsersFromLocalAdmin or $RemoveCurrentUserFromLocalAdmin
 
