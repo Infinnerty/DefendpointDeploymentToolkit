@@ -87,9 +87,9 @@ Param (
 	[Parameter(Mandatory=$false)]
 	[boolean]$InstallEventForwardingCertIficate = $false,								# Install and configure a certificate for Event Forwarding (Default: Disabled)
 	[Parameter(Mandatory=$false)]
-	[string]$EventForwardingCertIficateFile = "Certificate.cer",						# Event Forwarding certificate file-name (should be located in SupportFiles folder)
+	[string]$EventForwardingCertificateFile = "Certificate.cer",						# Event Forwarding certificate file-name (should be located in SupportFiles folder)
 	[Parameter(Mandatory=$false)]
-	[string]$EventForwardingCertIficateSubject = "Avecto Defendpoint Event Forwarding",	# Event Forwarding certificate subject
+	[string]$EventForwardingCertificateSubject = "Avecto Defendpoint Event Forwarding",	# Event Forwarding certificate subject
 	[Parameter(Mandatory=$false)]
 	[boolean]$ConfigureEventSubscription = $false,										# Configure the Event Collector Subscription (Default: Disabled)
 	[Parameter(Mandatory=$false)]
@@ -513,48 +513,9 @@ Try
 		##* START CUSTOM ACTIONS
 		##*===============================================
 
-		## Remove McAfee AV, install Sophos, and enable .NET 3.5.
+		## Enable .NET 3.5.
 		If ($CustomActions) 
 		{
-			If (Test-Path "C:\Program Files\McAfee\Agent\x86\frminst.exe") 
-			{
-				Write-Log -Message "Attempting to make McAfee Agent unmanaged and removed forever!"
-				Start-Process -FilePath "C:\Program Files\Mcafee\Agent\x86\frminst.exe" -ArgumentList "/forceuninstall /silent" -Wait -Verb RunAs
-				Write-Log -Message "Starting McAfee uninstall"
-				Start-Process -FilePath "$dirFiles\MFERemoval100.exe" -ArgumentList "/q /noreboot /all" -Wait -Verb RunAs
-				Write-Log -Message "Completed McAfee uninstall"
-			}
-
-			If (Test-Path "C:\Program Files\McAfee\Common Framework\x86\FrmInst.exe") 
-			{
-				Write-Log -Message "Attempting to make McAfee Agent unmanaged and removed forever!"
-				Start-Process -FilePath "C:\Program Files\McAfee\Common Framework\x86\FrmInst.exe" -ArgumentList "/forceuninstall /silent" -Wait -Verb RunAs
-				Write-Log -Message "Starting McAfee uninstall"
-				Start-Process -FilePath "$dirFiles\MFERemoval100.exe" -ArgumentList "/q /noreboot /all" -Wait -Verb RunAs
-				Write-Log -Message "Completed McAfee uninstall"
-			}
-
-			If (Test-Path "C:\Windows\Temp\*\Endpoint Security Platform") 
-			{
-				Write-Log -Message "Starting McAfee uninstall (found in TEMP)"
-				Start-Process -FilePath "$dirFiles\MFERemoval100.exe" -ArgumentList "/q /noreboot /all" -Wait -Verb RunAs
-				Write-Log -Message "Completed McAfee uninstall (found in TEMP)"
-			}
-
-			If (Test-Path "C:\Program Files\McAfee\Endpoint Security") 
-			{
-				Write-Log -Message "Starting McAfee uninstall"
-				Start-Process -FilePath "$dirFiles\MFERemoval100.exe" -ArgumentList "/q /noreboot /all" -Wait -Verb RunAs
-				Write-Log -Message "Completed McAfee uninstall"
-			}
-
-			If (!(Test-Path "C:\Program Files (x86)\Sophos\Sophos Anti-Virus\SavService.exe")) 
-			{
-				Write-Log -Message "Starting Sophos install"
-				Start-Process -FilePath "$dirFiles\SophosInstall.exe" -ArgumentList "-q -tps ignore" -Wait -Verb RunAs
-				Write-Log -Message "Completed Sophos install"
-			}
-
 			## Enable .NET Framework 3.5 (Windows 10).
 			Write-Log -Message "Attemping to enable .NET Framework 3.5..."
 			DISM /Online /Enable-Feature /FeatureName:NetFx3 /All /LogPath:"$envWinDir\Logs\Software\DISM.log"
@@ -607,7 +568,7 @@ Try
 			Write-Log -Message "The Defendpoint client [$appVersion] will be reinstalled."
 		}
 
-		## Check for Event Forwarding CertIficate (if required).
+		## Check for Event Forwarding Certificate (if required).
 		If (($InstallEventForwardingCertIficate) -and (-not (Test-Path "$dirSupportFiles\$eventForwardingCertIficateFile"))) 
 		{
 			Show-DialogBox -Text "Installation of Event Forwarding CertIficate was specIfied but no certIficate was found at $dirSupportFiles\$eventForwardingCertIficateFile" -Icon 'Stop'
@@ -629,15 +590,20 @@ Try
 			##* START CUSTOM ACTIONS
 			##*===============================================
 			
-			## Place the temp policy with service protection disabled in client program data directory:
-			Write-Log -Message "Attempt to copy temp policy file..."
-			Try {
-				Copy-Item "$dirSupportFiles\PrivilegeGuardConfig.xml" -Destination "C:\ProgramData\Avecto\Privilege Guard\DPC Cache\Machine" -Force -ErrorAction Stop
-				Write-Log -Message "Temp policy file copied."
-			}
-			Catch {
-				Write-Log -Message "Failed to copy temp file. Does thes source file exist, or is anti-tamper preventing this?" -Severity 2
-				Write-Log -Message "[$($_.Exception.Message)]" -Severity 2
+			If ($CustomActions) 
+			{
+				## Place the temp policy with service protection disabled in client program data directory:
+				Write-Log -Message "Attempt to copy temp policy file..."
+				Try 
+				{
+					Copy-Item "$dirSupportFiles\PrivilegeGuardConfig.xml" -Destination "C:\ProgramData\Avecto\Privilege Guard\DPC Cache\Machine" -Force -ErrorAction Stop
+					Write-Log -Message "Temp policy file copied."
+				}
+				Catch 
+				{
+					Write-Log -Message "Failed to copy temp file. Does thes source file exist, or is anti-tamper preventing this?" -Severity 2
+					Write-Log -Message "[$($_.Exception.Message)]" -Severity 2
+				}
 			}
 
 			##*===============================================
@@ -926,13 +892,13 @@ Try
 			{
 				Try
 				{
-					$certFile = New-Object System.Security.Cryptography.X509CertIficates.X509CertIficate2
-					$certFile.Import("$dirSupportFiles\$eventForwardingCertIficateFile")
-					$storeLocalMachine = New-Object System.Security.Cryptography.X509certIficates.X509Store ("LocalMachine", "Root")
+					$certFile = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2
+					$certFile.Import("$dirSupportFiles\$eventForwardingCertificateFile")
+					$storeLocalMachine = New-Object System.Security.Cryptography.X509certificates.X509Store ("LocalMachine", "Root")
 					$storeLocalMachine.Open('ReadWrite')
 					$storeLocalMachine.Add($certFile)
 					$storeLocalMachine.Close()
-					$sslCert = Get-ChildItem Cert:\LocalMachine\Root | Where-Object {$_.Subject -match $eventForwardingCertIficateSubject}
+					$sslCert = Get-ChildItem Cert:\LocalMachine\Root | Where-Object {$_.Subject -match $eventForwardingCertificateSubject}
 					If ($sslCert -ne $null) 
 					{
 						$sslCertPrivKey = $sslCert.PrivateKey 
@@ -945,7 +911,7 @@ Try
 					} 
 					Else 
 					{
-						Write-Log -Message "No certificate can be found with the Subject [$eventForwardingCertIficateSubject]." -Severity 2
+						Write-Log -Message "No certificate can be found with the Subject [$eventForwardingCertificateSubject]." -Severity 2
 					}
 				}
 				Catch 
