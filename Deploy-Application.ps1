@@ -85,7 +85,7 @@ Param (
 	[Parameter(Mandatory=$false)]
 	[boolean]$EnableWinRM = $false,														# Enable Windows Remote Management (WinRM) (Default: Disabled)
 	[Parameter(Mandatory=$false)]
-	[boolean]$InstallEventForwardingCertIficate = $false,								# Install and configure a certificate for Event Forwarding (Default: Disabled)
+	[boolean]$InstallEventForwardingCertificate = $false,								# Install and configure a certificate for Event Forwarding (Default: Disabled)
 	[Parameter(Mandatory=$false)]
 	[string]$EventForwardingCertificateFile = "Certificate.cer",						# Event Forwarding certificate file-name (should be located in SupportFiles folder)
 	[Parameter(Mandatory=$false)]
@@ -327,6 +327,54 @@ End of Function
 # C:\> Get-MsiInformation -Path "$env:Temp\Installer.msi"
 #
 #############################>
+
+
+function Get-MsiInformationNew {
+	Param (
+    [parameter(Mandatory=$true)]
+    [ValidateNotNullOrEmpty()]
+    [System.IO.FileInfo]$Path,
+
+    [parameter(Mandatory=$true)]
+    [ValidateNotNullOrEmpty()]
+    [ValidateSet("ProductCode", "ProductVersion", "ProductName", "Manufacturer", "ProductLanguage", "FullVersion")]
+	[string]$Property
+	)
+	Process 
+	{
+		Try 
+		{
+			# Read property from MSI database
+			$WindowsInstaller = New-Object -ComObject WindowsInstaller.Installer
+			$MSIDatabase = $WindowsInstaller.GetType().InvokeMember("OpenDatabase", "InvokeMethod", $null, $WindowsInstaller, @($Path.FullName, 0))
+			$Query = "SELECT Value FROM Property WHERE Property = '$($Property)'"
+			$View = $MSIDatabase.GetType().InvokeMember("OpenView", "InvokeMethod", $null, $MSIDatabase, ($Query))
+			$View.GetType().InvokeMember("Execute", "InvokeMethod", $null, $View, $null)
+			$Record = $View.GetType().InvokeMember("Fetch", "InvokeMethod", $null, $View, $null)
+			$Value = $Record.GetType().InvokeMember("StringData", "GetProperty", $null, $Record, 1)
+
+			# Commit database and close view
+			$MSIDatabase.GetType().InvokeMember("Commit", "InvokeMethod", $null, $MSIDatabase, $null)
+			$View.GetType().InvokeMember("Close", "InvokeMethod", $null, $View, $null)           
+			$MSIDatabase = $null
+			$View = $null
+
+			# Return the value
+			return $Value
+		} 
+		Catch 
+		{
+			Write-Warning -Message $_.Exception.Message ; break
+		}
+	}
+	End 
+	{
+		# Run garbage collection and release ComObject
+		[System.Runtime.Interopservices.Marshal]::ReleaseComObject($WindowsInstaller) | Out-Null
+		[System.GC]::Collect()
+	}
+}
+
 function Get-MsiInformation
 {
     [CmdletBinding(SupportsShouldProcess=$true, 
@@ -425,7 +473,7 @@ Try
 	Catch {}
 
 	##* Do not modify section below!
-	#region DoNotModIfy
+	#region DoNotModify
 	
 	## Variables: Exit Code
 	[int32]$mainExitCode = 0
@@ -475,7 +523,8 @@ Try
 	## Rather than define the version manually, we use Get-MsiInformation and retrieve the product version dynamically.
 	If (Test-Path "$dirFiles\DefendpointClient_$installArch.msi")
 	{
-		[string]$appVersion = Get-MsiInformation -Path "$dirFiles\DefendpointClient_x64.msi" | Select-Object -ExpandProperty ProductVersion
+		#[string]$appVersion = Get-MsiInformation -Path "$dirFiles\DefendpointClient_x64.msi" | Select-Object -ExpandProperty ProductVersion
+		[string]$appVersion = Get-MsiInformationNew -Path "$dirFiles\DefendpointClient_x64.msi" -Property ProductVersion
 	}
 	## Unless we are dealing with a mixed pilot environment (where a subset of users are testing a newever client version), $pilotClientVersion should be the same as $appVersion.
 	[string]$pilotClientVersion = $appVersion
@@ -556,7 +605,7 @@ Try
 					Exit-Script -ExitCode $mainExitCode
 				}	
 			}
-			elseIf (!($IC3Mode)) 
+			ElseIf (!($IC3Mode)) 
 			{
 				Write-Log -Message "The iC3 adapter does not need installing."
 			}
@@ -569,9 +618,9 @@ Try
 		}
 
 		## Check for Event Forwarding Certificate (if required).
-		If (($InstallEventForwardingCertIficate) -and (-not (Test-Path "$dirSupportFiles\$eventForwardingCertIficateFile"))) 
+		If (($InstallEventForwardingCertificate) -and (-not (Test-Path "$dirSupportFiles\$eventForwardingCertificateFile"))) 
 		{
-			Show-DialogBox -Text "Installation of Event Forwarding CertIficate was specIfied but no certIficate was found at $dirSupportFiles\$eventForwardingCertIficateFile" -Icon 'Stop'
+			Show-DialogBox -Text "Installation of Event Forwarding Certificate was specified but no certificate was found at $dirSupportFiles\$eventForwardingCertificateFile" -Icon 'Stop'
 			Exit-Script 1
 		}
 
@@ -884,11 +933,11 @@ Try
 			Enable-PSRemoting -Force -ErrorAction SilentlyContinue
 		}
 
-		## Install the Event Forwarding CertIficate (if required).
-		If ($InstallEventForwardingCertIficate) 
+		## Install the Event Forwarding Certificate (if required).
+		If ($InstallEventForwardingCertificate) 
 		{
-			Write-Log -Message "Installing Event Forwarding CertIficate [$eventForwardingCertIficateFile]"
-			If (Test-Path "$dirSupportFiles\$eventForwardingCertIficateFile") 
+			Write-Log -Message "Installing Event Forwarding Certificate [$eventForwardingCertificateFile]"
+			If (Test-Path "$dirSupportFiles\$eventForwardingCertificateFile") 
 			{
 				Try
 				{
