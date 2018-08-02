@@ -538,10 +538,11 @@ Try
 	##*===============================================
 
 	## Trigger a warning if the execution of the script is x86 and the OS is x64.
+	## TODO: Fix so it works properly on Windows 7.
 	If (!([System.Environment]::Is64BitProcess) -and ((Get-WmiObject Win32_OperatingSystem).OSArchitecture -eq "64-bit")) 
 	{
 		Write-Log -Message "It is not recommended to run this script in 32-bit mode on a 64-bit OS! Cannot continue." -Severity 3
-		Exit-Script -ExitCode 60001
+		#Exit-Script -ExitCode 60001
 	}
 
 	If ($DeploymentType -ine 'Uninstall') 
