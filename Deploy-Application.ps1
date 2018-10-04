@@ -106,6 +106,10 @@ Param (
 	[boolean]$AddRemovedUserstoRemoteDesktopUsers = $false								# Add any user removed from the Local Administrators group to the Remote Desktop Users group (Default: Disabled)
 )
 
+#################################################################################
+### START FUNCTION REGION #######################################################
+#################################################################################
+
 <#############################
 #.SYNOPSIS
 # Checks whether a given application is installed on the system.
@@ -328,7 +332,6 @@ End of Function
 #
 #############################>
 
-
 function Get-MsiInformationNew {
 	Param (
     [parameter(Mandatory=$true)]
@@ -375,93 +378,123 @@ function Get-MsiInformationNew {
 	}
 }
 
-function Get-MsiInformation
-{
-    [CmdletBinding(SupportsShouldProcess=$true, 
-                   PositionalBinding=$false,
-                   ConfirmImpact='Medium')]
-    [Alias("gmsi")]
-    Param(
-        [parameter(Mandatory=$true,
-                   ValueFromPipeline=$true,
-                   ValueFromPipelineByPropertyName=$true,
-                   HelpMessage = "Provide the path to an MSI")]
-        [ValidateNotNullOrEmpty()]
-        [System.IO.FileInfo[]]$Path,
- 
-        [parameter(Mandatory=$false)]
-        [ValidateSet( "ProductCode", "Manufacturer", "ProductName", "ProductVersion", "ProductLanguage" )]
-        [string[]]$Property = ( "ProductCode", "Manufacturer", "ProductName", "ProductVersion", "ProductLanguage" )
-    )
+function ForceUninstallDefendpoint {
+	
+	Write-Log -Message "Starting forced removal of Defendpoint client files and entries..."
+	
+	New-PSDrive -Name HKLM -PSProvider Registry -Root HKEY_LOCAL_MACHINE
 
-    Begin
-    {
-        # Do nothing for prep
-    }
-    Process
-    {
-        
-        ForEach ( $P in $Path )
-        {
-            if ($pscmdlet.ShouldProcess($P, "Get MSI Properties"))
-            {            
-                try
-                {
-                    Write-Verbose -Message "Resolving file information for $P"
-                    $MsiFile = Get-Item -Path $P
-                    Write-Verbose -Message "Executing on $P"
-                    
-                    # Read property from MSI database
-                    $WindowsInstaller = New-Object -ComObject WindowsInstaller.Installer
-                    $MSIDatabase = $WindowsInstaller.GetType().InvokeMember("OpenDatabase", "InvokeMethod", $null, $WindowsInstaller, @($MsiFile.FullName, 0))
-                    
-                    # Build hashtable for retruned objects properties
-                    $PSObjectPropHash = [ordered]@{File = $MsiFile.FullName}
-                    ForEach ( $Prop in $Property )
-                    {
-                        Write-Verbose -Message "Enumerating Property: $Prop"
-                        $Query = "SELECT Value FROM Property WHERE Property = '$( $Prop )'"
-                        $View = $MSIDatabase.GetType().InvokeMember("OpenView", "InvokeMethod", $null, $MSIDatabase, ($Query))
-                        $View.GetType().InvokeMember("Execute", "InvokeMethod", $null, $View, $null)
-                        $Record = $View.GetType().InvokeMember("Fetch", "InvokeMethod", $null, $View, $null)
-                        $Value = $Record.GetType().InvokeMember("StringData", "GetProperty", $null, $Record, 1)
- 
-                        # Return the value to the Property Hash
-                        $PSObjectPropHash.Add($Prop, $Value)
+	## Stop the systray icon (if required).
+	Stop-Process -ProcessName "PGSystemTray" -Force -ErrorAction SilentlyContinue
 
-                    }
-                    
-                    # Build the Object to Return
-                    $Object = @( New-Object -TypeName PSObject -Property $PSObjectPropHash )
-                    
-                    # Commit database and close view
-                    $MSIDatabase.GetType().InvokeMember("Commit", "InvokeMethod", $null, $MSIDatabase, $null)
-                    $View.GetType().InvokeMember("Close", "InvokeMethod", $null, $View, $null)           
-                    $MSIDatabase = $null
-                    $View = $null
-                }
-                catch
-                {
-                    Write-Error -Message $_.Exception.Message
-                }
-                finally
-                {
-                    Write-Output -InputObject @( $Object )
-                }
-            } # End of ShouldProcess If
-        } # End For $P in $Path Loop
+	## Stop and remove the service and driver (if found).
+	Stop-Service "Avecto Privilege Guard Service" -Force -ErrorAction SilentlyContinue
+	Stop-Service "Avecto Defendpoint Service" -Force -ErrorAction SilentlyContinue
+	Stop-Service "PGDriver" -Force -ErrorAction SilentlyContinue
+	sc.exe delete "PGDriver"
+	sc.exe delete "Avecto Defendpoint Service"
 
-    }
-    End
-    {
-        # Run garbage collection and release ComObject
-        [System.Runtime.Interopservices.Marshal]::ReleaseComObject($WindowsInstaller) | Out-Null
-        [System.GC]::Collect()
-    }
+	## Remove service registry keys.
+	Remove-RegistryKey -Key 'HKLM\SYSTEM\CurrentControlSet\Services\Avecto Privilege Guard Service' -Recurse
+	Remove-RegistryKey -Key 'HKLM\SYSTEM\CurrentControlSet\Services\Avecto Defendpoint Service' -Recurse
+
+	## Remove Defendpoint class keys.
+	Remove-RegistryKey -Key 'HKLM\SOFTWARE\Classes\Installer\UpgradeCodes\C612437742FA76246B8E6A6DCE096D4A' -Recurse
+
+	## Remove HKCR installer keys.
+	ForEach ($hkcrInstallerKeys in (Get-ChildItem "HKCR:\Installer\Products" -ErrorAction SilentlyContinue)) 
+	{
+		$hkcrInstallerKey = Get-RegistryKey -Key $hkcrInstallerKeys -ErrorAction SilentlyContinue
+		If ($hkcrInstallerKey.ProductName -match 'Avecto Privilege Guard Client') 
+		{
+			Remove-RegistryKey -Key $hkcrInstallerKeys -Recurse
+		}
+		If ($hkcrInstallerKey.ProductName -match 'Avecto Defendpoint Client') 
+		{
+			Remove-RegistryKey -Key $hkcrInstallerKeys -Recurse
+		}
+	}
+
+	## Remove HKLM installer keys.
+	ForEach ($hklmInstallerKeys in (Get-ChildItem "HKLM:\Software\Classes\Installer\Products" -ErrorAction SilentlyContinue)) 
+	{
+		$hklmInstallerKey = Get-RegistryKey -Key $hklmInstallerKeys -ErrorAction SilentlyContinue
+		If ($hklmInstallerKey.ProductName -match 'Avecto Privilege Guard Client') 
+		{
+			Remove-RegistryKey -Key $hklmInstallerKeys -Recurse
+		}
+		If ($hklmInstallerKey.ProductName -match 'Avecto Defendpoint Client') 
+		{
+			Remove-RegistryKey -Key $hklmInstallerKeys -Recurse
+		}
+	}
+
+	## Remove all PG DLLs located HKCR keys.
+	Write-Log -Message "Starting the removal of all PG Class Root (HKCR) DLLs..."
+	
+	## PGExtension.
+	Remove-RegistryKey -Key 'HKCR\CLSID\{01ED801E-1A37-4434-A7DA-303ABC37B08C}' -Recurse
+	Remove-RegistryKey -Key 'HKCR\PrivilegeGuardExtension.PGShellExt.1' -Recurse
+
+	## PGOutlookAddin.
+	Remove-RegistryKey -Key 'HKCR\CLSID\{420A649C-3BF0-4CFD-AFA2-8F0445AA56EA}' -Recurse
+
+	## PGDownload.
+	Remove-RegistryKey -Key 'HKCR\CLSID\{7A88BF59-BB6B-4184-97FD-A92CC7F0A977}' -Recurse
+
+	## PGBHO.
+	Remove-RegistryKey -Key 'HKCR\CLSID\{2633209C-31D6-412F-9B00-2419AFC4B254}' -Recurse
+
+	## PGActivityLogWmiProvider.
+	Remove-RegistryKey -Key 'HKCR\CLSID\{3DFD6106-2B0C-4CFE-91BA-3510503DA10C}' -Recurse
+
+	## PGPowerShellScript.
+	Remove-RegistryKey -Key 'HKCR\CLSID\{0D1CDFFB-739A-351F-8366-F332E332EC6E}' -Recurse
+	Remove-RegistryKey -Key 'HKCR\CLSID\{A6C582D3-976A-4F58-9D2A-4CCC05205136}' -Recurse
+	Remove-RegistryKey -Key 'HKCR\CLSID\{AF12877E-9895-39BB-8783-0026D2F7B452}' -Recurse
+	Remove-RegistryKey -Key 'HKCR\CLSID\{C50C1A20-9E01-3FD2-827C-5F64B6DF257C}' -Recurse
+
+	Write-Log -Message "Finished the removal of all PG Class Root (HKCR) DLLs."
+	
+	## Remove 4.1.234 HKCR hive.
+	Write-Log -Message "Attemping to remove 4.1.234 HKCR hive..."
+	Remove-RegistryKey -Key 'HKCR\Installer\Products\C780254786725A94F9C04BBDA2BD86EC' -Recurse
+	Remove-RegistryKey -Key 'HKLM\\SOFTWARE\Classes\Installer\Products\C780254786725A94F9C04BBDA2BD86EC' -Recurse
+	Write-Log -Message "Finished removing 4.1.234 HKCR hive."
+
+	## Close explorer so we can attempt deletion of 'Program Files' (x64 & x86).
+	Write-Log -Message "Closing Windows Explorer to attempt deletion of 'Program Files' (x64 & x86)..." -Severity 2
+	Get-Process -Name "explorer" | Stop-Process -Force
+	Start-Sleep -Seconds 6
+
+	## Delete the Defendpoint client 'Program Files' directory (if it still exists).
+	If (Test-Path "$env:ProgramFiles\Avecto\Privilege Guard Client") 
+	{
+		Write-Log -Message "Attempting to remove '$env:ProgramFiles\Avecto\Privilege Guard Client'..."
+		Remove-Item "$env:ProgramFiles\Avecto\Privilege Guard Client" -Recurse -Force
+	}
+
+	## Delete the Defendpoint client 'Program Files (x86)' directory (if it still exists).
+	If (Test-Path "${env:ProgramFiles(x86)}\Avecto\Privilege Guard Client")
+	{
+		Write-Log -Message "Attempting to remove '${env:ProgramFiles(x86)}\Avecto\Privilege Guard Client'..."
+		Remove-Item "${env:ProgramFiles(x86)}\Avecto\Privilege Guard Client" -Recurse -Force
+	}
+
+	## Start explorer (if it's not already running).
+	If (!(Get-Process -Name "explorer")) 
+	{
+		Write-Log -Message "Starting Windows Explorer as active logged on user: [$($RunAsActiveUser.NTAccount)]."
+		Execute-ProcessAsUser -Path "C:\Windows\explorer.exe"
+	}
+	
+	Write-Log -Message "Finished the removal of Defendpoint client files and entries."
+	
 }
-<#
-End of Function
-#>
+
+#################################################################################
+### END FUNCTION REGION #########################################################
+#################################################################################
 
 Try 
 {
@@ -538,11 +571,11 @@ Try
 	##*===============================================
 
 	## Trigger a warning if the execution of the script is x86 and the OS is x64.
-	## TODO: Fix so it works properly on Windows 7.
-	If (!([System.Environment]::Is64BitProcess) -and ((Get-WmiObject Win32_OperatingSystem).OSArchitecture -eq "64-bit")) 
+	## 4 = x86 // 8 = x64
+	If (([System.IntPtr]::Size -eq 4) -and ((Get-WmiObject Win32_OperatingSystem).OSArchitecture -eq "64-bit"))
 	{
 		Write-Log -Message "It is not recommended to run this script in 32-bit mode on a 64-bit OS! Cannot continue." -Severity 3
-		#Exit-Script -ExitCode 60001
+		Exit-Script -ExitCode 60001
 	}
 
 	If ($DeploymentType -ine 'Uninstall') 
@@ -687,113 +720,7 @@ Try
 		## Forcibly clean up the leftovers from the uninstall of the client.
 		If ($ForceUninstallPreviousVersions) 
 		{
-			Write-Log -Message "Starting forced removal of Defendpoint client files and entries..."
-			New-PSDrive -Name HKLM -PSProvider Registry -Root HKEY_LOCAL_MACHINE
-
-			## Stop the systray icon (if required).
-			Stop-Process -ProcessName "PGSystemTray" -Force -ErrorAction SilentlyContinue
-
-			## Stop and remove the service and driver (if found).
-			Stop-Service "Avecto Privilege Guard Service" -Force -ErrorAction SilentlyContinue
-			Stop-Service "Avecto Defendpoint Service" -Force -ErrorAction SilentlyContinue
-			Stop-Service "PGDriver" -Force -ErrorAction SilentlyContinue
-			sc.exe delete "PGDriver"
-			sc.exe delete "Avecto Defendpoint Service"
-
-			## Remove service registry keys.
-			Remove-RegistryKey -Key 'HKLM\SYSTEM\CurrentControlSet\Services\Avecto Privilege Guard Service' -Recurse
-			Remove-RegistryKey -Key 'HKLM\SYSTEM\CurrentControlSet\Services\Avecto Defendpoint Service' -Recurse
-
-			## Remove Defendpoint class keys.
-			Remove-RegistryKey -Key 'HKLM\SOFTWARE\Classes\Installer\UpgradeCodes\C612437742FA76246B8E6A6DCE096D4A' -Recurse
-
-			## Remove HKCR installer keys.
-			ForEach ($hkcrInstallerKeys in (Get-ChildItem "HKCR:\Installer\Products" -ErrorAction SilentlyContinue)) 
-			{
-				$hkcrInstallerKey = Get-RegistryKey -Key $hkcrInstallerKeys -ErrorAction SilentlyContinue
-				If ($hkcrInstallerKey.ProductName -match 'Avecto Privilege Guard Client') 
-				{
-					Remove-RegistryKey -Key $hkcrInstallerKeys -Recurse
-				}
-				If ($hkcrInstallerKey.ProductName -match 'Avecto Defendpoint Client') 
-				{
-					Remove-RegistryKey -Key $hkcrInstallerKeys -Recurse
-				}
-			}
-
-			## Remove HKLM installer keys.
-			ForEach ($hklmInstallerKeys in (Get-ChildItem "HKLM:\Software\Classes\Installer\Products" -ErrorAction SilentlyContinue)) 
-			{
-				$hklmInstallerKey = Get-RegistryKey -Key $hklmInstallerKeys -ErrorAction SilentlyContinue
-				If ($hklmInstallerKey.ProductName -match 'Avecto Privilege Guard Client') 
-				{
-					Remove-RegistryKey -Key $hklmInstallerKeys -Recurse
-				}
-				If ($hklmInstallerKey.ProductName -match 'Avecto Defendpoint Client') 
-				{
-					Remove-RegistryKey -Key $hklmInstallerKeys -Recurse
-				}
-			}
-
-			## Remove all PG DLLs located HKCR keys.
-			Write-Log -Message "Starting the removal of all PG Class Root (HKCR) DLLs..."
-			
-			## PGExtension.
-			Remove-RegistryKey -Key 'HKCR\CLSID\{01ED801E-1A37-4434-A7DA-303ABC37B08C}' -Recurse
-			Remove-RegistryKey -Key 'HKCR\PrivilegeGuardExtension.PGShellExt.1' -Recurse
-
-			## PGOutlookAddin.
-			Remove-RegistryKey -Key 'HKCR\CLSID\{420A649C-3BF0-4CFD-AFA2-8F0445AA56EA}' -Recurse
-
-			## PGDownload.
-			Remove-RegistryKey -Key 'HKCR\CLSID\{7A88BF59-BB6B-4184-97FD-A92CC7F0A977}' -Recurse
-
-			## PGBHO.
-			Remove-RegistryKey -Key 'HKCR\CLSID\{2633209C-31D6-412F-9B00-2419AFC4B254}' -Recurse
-
-			## PGActivityLogWmiProvider.
-			Remove-RegistryKey -Key 'HKCR\CLSID\{3DFD6106-2B0C-4CFE-91BA-3510503DA10C}' -Recurse
-
-			## PGPowerShellScript.
-			Remove-RegistryKey -Key 'HKCR\CLSID\{0D1CDFFB-739A-351F-8366-F332E332EC6E}' -Recurse
-			Remove-RegistryKey -Key 'HKCR\CLSID\{A6C582D3-976A-4F58-9D2A-4CCC05205136}' -Recurse
-			Remove-RegistryKey -Key 'HKCR\CLSID\{AF12877E-9895-39BB-8783-0026D2F7B452}' -Recurse
-			Remove-RegistryKey -Key 'HKCR\CLSID\{C50C1A20-9E01-3FD2-827C-5F64B6DF257C}' -Recurse
-
-			Write-Log -Message "Finished the removal of all PG Class Root (HKCR) DLLs."
-			
-			## Remove 4.1.234 HKCR hive.
-			Write-Log -Message "Attemping to remove 4.1.234 HKCR hive..."
-			Remove-RegistryKey -Key 'HKCR\Installer\Products\C780254786725A94F9C04BBDA2BD86EC' -Recurse
-			Remove-RegistryKey -Key 'HKLM\\SOFTWARE\Classes\Installer\Products\C780254786725A94F9C04BBDA2BD86EC' -Recurse
-			Write-Log -Message "Finished removing 4.1.234 HKCR hive."
-
-			## Close explorer so we can attempt deletion of 'Program Files' (x64 & x86).
-			Write-Log -Message "Closing Windows Explorer to attempt deletion of 'Program Files' (x64 & x86)..." -Severity 2
-			Get-Process -Name "explorer" | Stop-Process -Force
-			Start-Sleep -Seconds 6
-
-			## Delete the Defendpoint client 'Program Files' directory (if it still exists).
-			If (Test-Path "$env:ProgramFiles\Avecto\Privilege Guard Client") 
-			{
-				Write-Log -Message "Attempting to remove '$env:ProgramFiles\Avecto\Privilege Guard Client'..."
-				Remove-Item "$env:ProgramFiles\Avecto\Privilege Guard Client" -Recurse -Force
-			}
-
-			## Delete the Defendpoint client 'Program Files (x86)' directory (if it still exists).
-			If (Test-Path "${env:ProgramFiles(x86)}\Avecto\Privilege Guard Client")
-			{
-				Write-Log -Message "Attempting to remove '${env:ProgramFiles(x86)}\Avecto\Privilege Guard Client'..."
-				Remove-Item "${env:ProgramFiles(x86)}\Avecto\Privilege Guard Client" -Recurse -Force
-			}
-
-			## Start explorer (if it's not already running).
-			If (!(Get-Process -Name "explorer")) 
-			{
-				Write-Log -Message "Starting Windows Explorer as active logged on user: [$($RunAsActiveUser.NTAccount)]."
-				Execute-ProcessAsUser -Path "C:\Windows\explorer.exe"
-			}
-			Write-Log -Message "Finished the removal of Defendpoint client files and entries."
+			ForceUninstallDefendpoint
 		}	
 
 		##*===============================================
@@ -1127,6 +1054,7 @@ Try
 			Write-Log -Message "Restarting Windows Explorer to allow for injection of PGHook." -Severity 2
 			Get-Process -Name "explorer" | Stop-Process -Force
 			Start-Sleep -Seconds 6
+
 			## Start explorer.
 			If (!(Get-Process -Name "explorer")) 
 			{
@@ -1220,108 +1148,7 @@ Try
 
 		If ($ForceUninstallPreviousVersions) 
 		{
-			New-PSDrive -Name HKLM -PSProvider Registry -Root HKEY_LOCAL_MACHINE
-
-			## Stop the Systray icon (if required).
-			Stop-Process -ProcessName "PGSystemTray" -Force -ErrorAction SilentlyContinue
-
-			## Stop the service (if found).
-			Stop-Service "Avecto Privilege Guard Service" -Force -ErrorAction SilentlyContinue
-			Stop-Service "Avecto Defendpoint Service" -Force -ErrorAction SilentlyContinue
-			Stop-Service "PGDriver" -Force -ErrorAction SilentlyContinue
-			sc.exe delete "PGDriver"
-			sc.exe delete "Avecto Defendpoint Service"
-
-			## Remove service registry keys.
-			Remove-RegistryKey -Key 'HKLM\SYSTEM\CurrentControlSet\Services\Avecto Privilege Guard Service' -Recurse
-			Remove-RegistryKey -Key 'HKLM\SYSTEM\CurrentControlSet\Services\Avecto Defendpoint Service' -Recurse
-
-			## Remove Defendpoint class keys.
-			Remove-RegistryKey -Key 'HKLM\SOFTWARE\Classes\Installer\UpgradeCodes\C612437742FA76246B8E6A6DCE096D4A' -Recurse
-
-			## Remove HKCR installer keys.
-			ForEach ($hkcrInstallerKeys in (Get-ChildItem "HKCR:\Installer\Products" -ErrorAction SilentlyContinue)) 
-			{
-				$hkcrInstallerKey = Get-RegistryKey -Key $hkcrInstallerKeys -ErrorAction SilentlyContinue
-				If ($hkcrInstallerKey.ProductName -match 'Avecto Privilege Guard Client') 
-				{
-					Remove-RegistryKey -Key $hkcrInstallerKeys -Recurse
-				}
-				If ($hkcrInstallerKey.ProductName -match 'Avecto Defendpoint Client') 
-				{
-					Remove-RegistryKey -Key $hkcrInstallerKeys -Recurse
-				}
-			}
-
-			## Remove HKLM installer keys.
-			ForEach ($hklmInstallerKeys in (Get-ChildItem "HKLM:\Software\Classes\Installer\Products" -ErrorAction SilentlyContinue)) 
-			{
-				$hklmInstallerKey = Get-RegistryKey -Key $hklmInstallerKeys -ErrorAction SilentlyContinue
-				If ($hklmInstallerKey.ProductName -match 'Avecto Privilege Guard Client') 
-				{
-					Remove-RegistryKey -Key $hklmInstallerKeys -Recurse
-				}
-				If ($hklmInstallerKey.ProductName -match 'Avecto Defendpoint Client')
-				{
-					Remove-RegistryKey -Key $hklmInstallerKeys -Recurse
-				}
-			}
-
-			## Remove all PG DLLs located HKCR keys.
-			Write-Log -Message "Start removal of all PG Class Root (HKCR) DLLs..."
-			
-			## PGExtension.
-			Remove-RegistryKey -Key 'HKCR\CLSID\{01ED801E-1A37-4434-A7DA-303ABC37B08C}' -Recurse
-			Remove-RegistryKey -Key 'HKCR\PrivilegeGuardExtension.PGShellExt.1' -Recurse
-
-			## PGOutlookAddin.
-			Remove-RegistryKey -Key 'HKCR\CLSID\{420A649C-3BF0-4CFD-AFA2-8F0445AA56EA}' -Recurse
-
-			## PGDownload.
-			Remove-RegistryKey -Key 'HKCR\CLSID\{7A88BF59-BB6B-4184-97FD-A92CC7F0A977}' -Recurse
-
-			## PGBHO.
-			Remove-RegistryKey -Key 'HKCR\CLSID\{2633209C-31D6-412F-9B00-2419AFC4B254}' -Recurse
-
-			## PGActivityLogWmiProvider.
-			Remove-RegistryKey -Key 'HKCR\CLSID\{3DFD6106-2B0C-4CFE-91BA-3510503DA10C}' -Recurse
-
-			## PGPowerShellScript.
-			Remove-RegistryKey -Key 'HKCR\CLSID\{0D1CDFFB-739A-351F-8366-F332E332EC6E}' -Recurse
-			Remove-RegistryKey -Key 'HKCR\CLSID\{A6C582D3-976A-4F58-9D2A-4CCC05205136}' -Recurse
-			Remove-RegistryKey -Key 'HKCR\CLSID\{AF12877E-9895-39BB-8783-0026D2F7B452}' -Recurse
-			Remove-RegistryKey -Key 'HKCR\CLSID\{C50C1A20-9E01-3FD2-827C-5F64B6DF257C}' -Recurse
-
-			Write-Log -Message "Finished removal of all PG Class Root (HKCR) DLLs."
-
-			## Remove 4.1.234 HKCR hive.
-			Write-Log -Message "Start removal of 4.1.234 HKCR hive..."
-			Remove-RegistryKey -Key 'HKCR\Installer\Products\C780254786725A94F9C04BBDA2BD86EC' -Recurse
-			Remove-RegistryKey -Key 'HKLM\\SOFTWARE\Classes\Installer\Products\C780254786725A94F9C04BBDA2BD86EC' -Recurse
-			Write-Log -Message "Finished removal of 4.1.234 HKCR hive."
-
-			## Close explorer so we can attempt deletion of 'Program Files' (x64 & x86).
-			Write-Log -Message "Closing Windows Explorer to attempt deletion of 'Program Files' (x64 & x86)." -Severity 2
-			Get-Process -Name "explorer" | Stop-Process -Force
-			Start-Sleep -Seconds 6
-
-			If (Test-Path "$env:ProgramFiles\Avecto\Privilege Guard Client") 
-			{
-				Write-Log -Message "Attempting removal of '$env:ProgramFiles\Avecto\Privilege Guard Client'"
-				Remove-Item "$env:ProgramFiles\Avecto\Privilege Guard Client" -Recurse -Force
-			}
-			If (Test-Path "${env:ProgramFiles(x86)}\Avecto\Privilege Guard Client") 
-			{
-				Write-Log -Message "Attempting removal of '${env:ProgramFiles(x86)}\Avecto\Privilege Guard Client'"
-				Remove-Item "${env:ProgramFiles(x86)}\Avecto\Privilege Guard Client" -Recurse -Force
-			}
-
-			## Start explorer.
-			If (!(Get-Process -Name "explorer")) 
-			{
-				Write-Log -Message "Starting Windows Explorer as active logged on user: [$($RunAsActiveUser.NTAccount)]."
-				Execute-ProcessAsUser -Path "C:\Windows\explorer.exe"
-			}
+			ForceUninstallDefendpoint
 		}
 
 		## Display a restart prompt (if required).
