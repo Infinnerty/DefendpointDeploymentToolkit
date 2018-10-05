@@ -380,7 +380,7 @@ function Get-MsiInformationNew {
 
 function ForceUninstallDefendpoint {
 	
-	Write-Log -Message "Starting forced removal of Defendpoint client files and entries..."
+	Write-Log -Message "Starting a forced removal of Defendpoint client files and settings..." -Severity 2
 	
 	New-PSDrive -Name HKLM -PSProvider Registry -Root HKEY_LOCAL_MACHINE
 
@@ -402,30 +402,32 @@ function ForceUninstallDefendpoint {
 	Remove-RegistryKey -Key 'HKLM\SOFTWARE\Classes\Installer\UpgradeCodes\C612437742FA76246B8E6A6DCE096D4A' -Recurse
 
 	## Remove HKCR installer keys.
-	ForEach ($hkcrInstallerKeys in (Get-ChildItem "HKCR:\Installer\Products" -ErrorAction SilentlyContinue)) 
+	Write-Log -Message "Starting the removal of all HKCR installer keys..."
+	ForEach ($hkcrInstallerKey in (Get-ChildItem "HKCR:\Installer\Products")) 
 	{
-		$hkcrInstallerKey = Get-RegistryKey -Key $hkcrInstallerKeys -ErrorAction SilentlyContinue
-		If ($hkcrInstallerKey.ProductName -match 'Avecto Privilege Guard Client') 
+		$hkcrInstallerKeyValue = Get-RegistryKey -Key $hkcrInstallerKey
+		If ($hkcrInstallerKeyValue.ProductName -match 'Avecto Privilege Guard Client') 
 		{
-			Remove-RegistryKey -Key $hkcrInstallerKeys -Recurse
+			Remove-RegistryKey -Key $hkcrInstallerKeyValue -Recurse -Verbose
 		}
-		If ($hkcrInstallerKey.ProductName -match 'Avecto Defendpoint Client') 
+		If ($hkcrInstallerKeyValue.ProductName -match 'Avecto Defendpoint Client') 
 		{
-			Remove-RegistryKey -Key $hkcrInstallerKeys -Recurse
+			Remove-RegistryKey -Key $hkcrInstallerKeyValue -Recurse -Verbose
 		}
 	}
 
 	## Remove HKLM installer keys.
-	ForEach ($hklmInstallerKeys in (Get-ChildItem "HKLM:\Software\Classes\Installer\Products" -ErrorAction SilentlyContinue)) 
+	Write-Log -Message "Starting the removal of all HKLM installer keys..."
+	ForEach ($hklmInstallerKey in (Get-ChildItem "HKLM:\Software\Classes\Installer\Products")) 
 	{
-		$hklmInstallerKey = Get-RegistryKey -Key $hklmInstallerKeys -ErrorAction SilentlyContinue
-		If ($hklmInstallerKey.ProductName -match 'Avecto Privilege Guard Client') 
+		$hklmInstallerKeyValue = Get-RegistryKey -Key $hklmInstallerKey
+		If ($hklmInstallerKeyValue.ProductName -match 'Avecto Privilege Guard Client') 
 		{
-			Remove-RegistryKey -Key $hklmInstallerKeys -Recurse
+			Remove-RegistryKey -Key $hklmInstallerKeyValue -Recurse -Verbose
 		}
-		If ($hklmInstallerKey.ProductName -match 'Avecto Defendpoint Client') 
+		If ($hklmInstallerKeyValue.ProductName -match 'Avecto Defendpoint Client') 
 		{
-			Remove-RegistryKey -Key $hklmInstallerKeys -Recurse
+			Remove-RegistryKey -Key $hklmInstallerKeyValue -Recurse -Verbose
 		}
 	}
 
@@ -457,7 +459,7 @@ function ForceUninstallDefendpoint {
 	Write-Log -Message "Finished the removal of all PG Class Root (HKCR) DLLs."
 	
 	## Remove 4.1.234 HKCR hive.
-	Write-Log -Message "Attemping to remove 4.1.234 HKCR hive..."
+	Write-Log -Message "Attemping to remove 4.1.234 HKCR hive..." -Severity 2
 	Remove-RegistryKey -Key 'HKCR\Installer\Products\C780254786725A94F9C04BBDA2BD86EC' -Recurse
 	Remove-RegistryKey -Key 'HKLM\\SOFTWARE\Classes\Installer\Products\C780254786725A94F9C04BBDA2BD86EC' -Recurse
 	Write-Log -Message "Finished removing 4.1.234 HKCR hive."
@@ -470,16 +472,33 @@ function ForceUninstallDefendpoint {
 	## Delete the Defendpoint client 'Program Files' directory (if it still exists).
 	If (Test-Path "$env:ProgramFiles\Avecto\Privilege Guard Client") 
 	{
-		Write-Log -Message "Attempting to remove '$env:ProgramFiles\Avecto\Privilege Guard Client'..."
+		Write-Log -Message "Attempting to remove '$env:ProgramFiles\Avecto\Privilege Guard Client'..." -Severity 2
 		Remove-Item "$env:ProgramFiles\Avecto\Privilege Guard Client" -Recurse -Force
 	}
 
 	## Delete the Defendpoint client 'Program Files (x86)' directory (if it still exists).
 	If (Test-Path "${env:ProgramFiles(x86)}\Avecto\Privilege Guard Client")
 	{
-		Write-Log -Message "Attempting to remove '${env:ProgramFiles(x86)}\Avecto\Privilege Guard Client'..."
+		Write-Log -Message "Attempting to remove '${env:ProgramFiles(x86)}\Avecto\Privilege Guard Client'..." -Severity 2
 		Remove-Item "${env:ProgramFiles(x86)}\Avecto\Privilege Guard Client" -Recurse -Force
 	}
+
+	## Remove orphaned driver entries.
+	Write-Log -Message "Attempting to remove PGDriver entries from the DriverStore..." -Severity 2
+	ForEach ($driverKey in (Get-ChildItem "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DIFx\DriverStore")) 
+	{
+		$driverKeyValue = Get-RegistryKey -Key $driverKey
+		If ($driverKeyValue.ManufacturerName -match 'Avecto') 
+		{
+			Remove-RegistryKey -Key $driverKeyValue -Recurse -Verbose
+		}
+		If ($driverKeyValue.ProductName -match 'Avecto Defendpoint Client') 
+		{
+			Remove-RegistryKey -Key $driverKeyValue -Recurse -Verbose
+		}
+	}
+
+
 
 	## Start explorer (if it's not already running).
 	If (!(Get-Process -Name "explorer")) 
@@ -588,7 +607,7 @@ Try
 		## Check that the Defendpoint MSI is present, if not then notify and exit.
 		If (!(Test-Path "$dirFiles\DefendpointClient_$installArch.msi"))
 		{
-			Write-Log -Message "The Defendpoint MSI file: '$dirFiles\DefendpointClient_$installArch.msi' in not in the '$dirFiles' directory. Cannot continue." -Severity 3
+			Write-Log -Message "The Defendpoint MSI file in: '$dirFiles\DefendpointClient_$installArch.msi' is missing. Cannot continue." -Severity 3
 			Exit-Script -ExitCode 60001
 		}
 
